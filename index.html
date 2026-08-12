@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>飛行前安全確認支援</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>飛行前安全確認支援</h1>
+      <p>予定飛行経路と周辺の対象物を照らし合わせ、現地で確認する内容を整理します。</p>
+    </div>
+    <div class="top-actions">
+      <button id="locateBtn" class="button secondary">◎ 現在地</button>
+      <button id="resetBtn" class="button ghost">やり直す</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="map-panel">
+      <div class="toolbar">
+        <button id="drawRouteBtn" class="button primary">経路を描く</button>
+        <button id="undoBtn" class="button secondary" disabled>1点戻す</button>
+        <button id="manualTolBtn" class="button secondary">離着陸地点を変更</button>
+      </div>
+
+      <div class="coach">
+        <strong id="coachTitle">まず経路を描きます</strong>
+        <span id="coachBody">ボタンを押したら、地図上の通過点を順番にクリックしてください。</span>
+      </div>
+
+      <div class="chips">
+        <span id="tolChip" class="chip pending">離着陸地点：未設定</span>
+        <span id="routeChip" class="chip pending">経路：未設定</span>
+        <span id="analysisChip" class="chip pending">未分析</span>
+      </div>
+
+      <div class="range-legend" aria-label="確認範囲の凡例">
+        <span><i class="range-dot range-normal"></i>通常飛行として確認：10 m以内</span>
+        <span><i class="range-dot range-deviation"></i>経路を外れた場合：およそ10〜32 m</span>
+        <span><i class="range-dot range-outer"></i>さらに外れた場合：およそ32〜66 m</span>
+        <span><i class="range-dot range-search"></i>地図情報のみ：およそ66〜200 m</span>
+      </div>
+
+      <div id="map" aria-label="飛行経路設定用地図"></div>
+
+      <div class="map-note">
+        色分けした範囲は研究用の仮値です。200 mは地図情報を探すための範囲で、運航上の領域を表すものではありません。表示されない細い線や付属設備があるため、最終確認は現地で行ってください。
+      </div>
+    </section>
+
+    <aside class="side-panel">
+      <section class="summary-card">
+        <div class="summary-title-row">
+          <div>
+            <div class="eyebrow">確認状況</div>
+            <h2>飛行前の確認</h2>
+          </div>
+          <span id="analysisState" class="state-badge">待機中</span>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><span>検出した対象</span><strong id="objectCount">—</strong></div>
+          <div class="metric"><span>未確認</span><strong id="uncheckedCount">—</strong></div>
+          <div class="metric"><span>対応が必要</span><strong id="actionCount">—</strong></div>
+        </div>
+        <div class="small-metrics">
+          <span>経路周辺 <strong id="routeCount">—</strong></span>
+          <span>離着陸地点周辺 <strong id="tolCount">—</strong></span>
+        </div>
+      </section>
+
+      <div id="checks" class="checks">
+        <div class="empty-state">経路を描き終えると、自動で分析結果がここに表示されます。</div>
+      </div>
+    </aside>
+  </main>
+
+  <template id="checkTemplate">
+    <article class="check-card">
+      <div class="check-head">
+        <div>
+          <div class="check-type"></div>
+          <h3 class="check-title"></h3>
+        </div>
+        <span class="check-status">未確認</span>
+      </div>
+
+      <div class="check-location"></div>
+
+      <section class="check-section relationship-section">
+        <div class="section-label">運航との関係</div>
+        <p class="check-relationship"></p>
+      </section>
+
+      <section class="check-section verification-section">
+        <div class="section-label">確認すること</div>
+        <p class="check-verification"></p>
+      </section>
+
+      <div class="check-actions">
+        <button class="button safe-button">問題なし</button>
+        <button class="button warning-button">対応が必要</button>
+        <button class="text-button focus-button">地図で表示</button>
+      </div>
+
+      <div class="action-panel" hidden>
+        <div class="section-label">必要な対応</div>
+        <p>実際の状況に合わせて、必要な対応を選んでください。</p>
+        <label><input type="checkbox" value="経路変更"> 予定飛行経路を変更する</label>
+        <label><input type="checkbox" value="離着陸地点変更"> 離着陸地点を変更する</label>
+        <label><input type="checkbox" value="現地再確認"> 対象物の位置・高さ・方向を現地で再確認する</label>
+        <label><input type="checkbox" value="共有"> 補助者などと確認内容を共有する</label>
+        <label><input type="checkbox" value="その他"> その他の対応を行う</label>
+        <button class="button complete-button">対応済みにする</button>
+      </div>
+
+      <details class="reason-box">
+        <summary>確認する理由</summary>
+        <p class="check-reason"></p>
+        <p class="check-limitation"></p>
+        <div class="check-source"></div>
+      </details>
+    </article>
+  </template>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+  <script src="https://unpkg.com/osmtogeojson@3.0.0-beta.5/osmtogeojson.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
