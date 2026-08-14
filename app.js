@@ -14,7 +14,7 @@ const MAP_SEARCH_DISTANCE_KM = 0.200;        // 地図情報取得用。領域�
 const map = L.map('map', { doubleClickZoom: false }).setView([37.4948, 139.9298], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 20,
-  attribution: '&copy; OpenStreetMap の協力者'
+  attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 
 const routeGroup = L.layerGroup().addTo(map);
